@@ -1,8 +1,8 @@
 import PyPDF2
 import re
 
-# --------------------- PDF Reader ---------------------
-def read_pdf_resume(file_path="Rahil_Chheda_Resume.pdf"):
+# ---------------- PDF Reader ----------------
+def read_pdf_resume(file_path="resume.pdf"):
     text = ""
     with open(file_path, 'rb') as file:
         pdf_reader = PyPDF2.PdfReader(file)
@@ -12,99 +12,116 @@ def read_pdf_resume(file_path="Rahil_Chheda_Resume.pdf"):
                 text += page_text + "\n"
     return text.lower()
 
+# ---------------- Skill DB ----------------
+skills_db = {
+    "languages": {
+        "Python", "Java", "C++", "C", "R", "JavaScript", "TypeScript", "SQL", "Go", "Ruby", "PHP", "Swift", "Kotlin"
+    },
+    "tools": {
+        "Excel", "Power BI", "Tableau", "Git", "Docker", "Jira", "Linux", "Postman", "Figma", "VS Code", "IntelliJ", "Notion"
+    },
+    "frameworks": {
+        "Flask", "Django", "FastAPI", "React", "Angular", "Node.js", "Spring Boot", "Next.js", "Vue.js", "Bootstrap", "Express"
+    },
+    "cloud": {
+        "AWS", "Azure", "GCP", "Firebase", "Heroku", "DigitalOcean", "Netlify"
+    },
+    "ml": {
+        "Machine Learning", "Deep Learning", "NLP", "Computer Vision", "Scikit-learn", "TensorFlow", "PyTorch",
+        "Keras", "XGBoost", "LightGBM", "OpenCV", "Hugging Face"
+    },
+    "databases": {
+        "MySQL", "PostgreSQL", "MongoDB", "Redis", "SQLite", "Oracle", "Cassandra", "Snowflake", "BigQuery"
+    },
+    "devops": {
+        "CI/CD", "Kubernetes", "Terraform", "Ansible", "Prometheus", "Grafana", "Jenkins", "GitHub Actions"
+    },
+    "cybersecurity": {
+        "Network Security", "Penetration Testing", "Wireshark", "Burp Suite", "SIEM", "Firewalls", "OWASP", "Nmap"
+    },
+    "marketing": {
+        "SEO", "Google Analytics", "Google Ads", "Facebook Ads", "Email Marketing", "Content Strategy", "CRM", "Ahrefs"
+    },
+    "finance": {
+        "Accounting", "Tally", "GST", "Financial Modeling", "Budgeting", "Forecasting", "QuickBooks", "Valuation"
+    },
+    "soft_skills": {
+        "communication", "leadership", "teamwork", "problem-solving", "critical thinking", "adaptability", "time management",
+        "collaboration", "emotional intelligence", "decision making", "conflict resolution"
+    }
+}
 
-# --------------------- Skill Extraction ---------------------
-def extract_skills(resume_text, skills_db):
-    found_skills = set()
-    for skill in skills_db:
-        if skill.lower() in resume_text:
-            found_skills.add(skill)
-    return found_skills
 
+def flatten_skills(skills_dict):
+    return set().union(*skills_dict.values())
 
-def extract_project_based_skills(resume_text, skills_db):
+# ---------------- Skill Extraction ----------------
+def extract_skills(resume_text, skills_dict):
+    found = set()
+    for category, skill_set in skills_dict.items():
+        for skill in skill_set:
+            if skill.lower() in resume_text:
+                found.add(skill)
+    return found
+
+# ---------------- Project Skill Extraction ----------------
+def extract_project_based_skills(resume_text, all_skills):
     project_keywords = ["project", "developed", "built", "created", "implemented", "designed"]
-    project_sentences = []
-
-    # Break into sentences
     sentences = re.split(r'[.?!\n]', resume_text)
-
-    # Find sentences that likely describe projects
-    for sentence in sentences:
-        if any(keyword in sentence.lower() for keyword in project_keywords):
-            project_sentences.append(sentence)
-
-    # Extract project-related skills
+    project_sentences = [s for s in sentences if any(k in s.lower() for k in project_keywords)]
     project_skills = set()
     for sentence in project_sentences:
-        for skill in skills_db:
+        for skill in all_skills:
             if skill.lower() in sentence.lower():
                 project_skills.add(skill)
-
     return project_skills
 
+def calculate_resume_score(resume_text, skills_found, skill_weights, project_skills=None):
+    # 1. Skill Match Score (60%)
+    skill_score = 0
+    max_skill_score = sum(skill_weights.values())
 
-# --------------------- Resume Scoring ---------------------
-def calculate_resume_score(skills_found, skill_weights, project_skills=None):
-    total_score = 0
     for skill in skills_found:
         base_weight = skill_weights.get(skill, 1)
         if project_skills and skill in project_skills:
-            total_score += base_weight * 1.5  # boost if used in projects
+            skill_score += base_weight * 1.5
         else:
-            total_score += base_weight
+            skill_score += base_weight
 
-    max_possible = sum(skill_weights.values()) * 1.5  # assuming project boosting
-    normalized_score = (total_score / max_possible) * 100
-    return round(normalized_score, 2)
+    skill_match_percent = (skill_score / (max_skill_score * 0.8)) * 60  # scaled to 60%
 
+    # 2. Keyword Diversity Bonus (15%)
+    diversity_bonus = min(len(skills_found), 15) / 15 * 50
 
-# --------------------- Role Suggestion ---------------------
-def suggest_roles(skills_found, job_roles):
-    role_scores = {}
-    for role, required_skills in job_roles.items():
-        match_count = len(set(skills_found) & required_skills)
-        role_scores[role] = match_count
-    sorted_roles = sorted(role_scores.items(), key=lambda x: x[1], reverse=True)
-    return [role for role, score in sorted_roles if score > 0][:3]
+    # 3. Soft Skills & Tools Bonus (25%)
+    soft_skills = {"communication", "leadership", "teamwork", "problem-solving", "critical thinking"}
+    tools = {"Excel", "Power BI", "Tableau", "Git", "Docker"}
+    soft_tools = soft_skills.union(tools)
+    soft_tools_bonus = len(skills_found & soft_tools) / len(soft_tools) * 25
 
-
-# --------------------- Resume Completeness ---------------------
-def check_section_completeness(text: str) -> dict:
-    sections = ["Education", "Experience", "Skills", "Projects", "Certifications", "Achievements"]
-    completeness = {}
-    for section in sections:
-        completeness[section] = section.lower() in text.lower()
-    return completeness
+    # Final Score
+    total_score = skill_match_percent + diversity_bonus + soft_tools_bonus
+    return round(min(total_score, 100), 2)
 
 
-# --------------------- Skill Categorization ---------------------
-def categorize_skills(skills: list[str]) -> dict:
-    tools = {"Excel", "Tableau", "Power BI", "AWS", "Git", "Docker"}
-    languages = {"Python", "Java", "C++", "SQL", "R"}
-    soft_skills = {"communication", "teamwork", "leadership", "problem-solving"}
 
-    categorized = {"tools": [], "languages": [], "soft_skills": [], "others": []}
+# ---------------- Resume Insights ----------------
+def generate_strengths_and_improvements(skills_found, project_skills):
+    strengths = []
+    improvements = []
 
-    for skill in skills:
-        s = skill.lower()
-        if any(t.lower() == s for t in tools):
-            categorized["tools"].append(skill)
-        elif any(l.lower() == s for l in languages):
-            categorized["languages"].append(skill)
-        elif any(ss.lower() == s for ss in soft_skills):
-            categorized["soft_skills"].append(skill)
-        else:
-            categorized["others"].append(skill)
-    return categorized
+    if project_skills:
+        strengths.append("Good use of project-based skills")
+    if len(skills_found) >= 10:
+        strengths.append("Wide range of relevant skills detected")
+    if any(skill in skills_found for skill in ["Python", "SQL", "Machine Learning"]):
+        strengths.append("Strong technical foundation")
 
+    if len(skills_found) < 5:
+        improvements.append("Add more relevant technical or soft skills")
+    if not project_skills:
+        improvements.append("Highlight your project contributions more explicitly")
+    if "communication" not in skills_found:
+        improvements.append("Include soft skills like communication or teamwork")
 
-# --------------------- Experience Snippets (Optional for UI Display) ---------------------
-def extract_experience(text):
-    experience_keywords = ["experience", "worked on", "handled", "responsible for"]
-    lines = text.split("\n")
-    experience_lines = [
-        line.strip() for line in lines
-        if any(kw in line.lower() for kw in experience_keywords)
-    ]
-    return experience_lines
+    return strengths, improvements
