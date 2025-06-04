@@ -1,22 +1,9 @@
-# Use an official Python image
-FROM python:3.11-slim
+FROM python:3.11
 
-# Set the working directory
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+COPY . .
 
-# Install required packages
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose a port (only needed if you're running a web API like FastAPI/Flask)
-EXPOSE 8000
-
-# Command to run the app (adjust this depending on your entry point)
-CMD ["python", "main.py"]
-
-
-
-COPY Rahil_Chheda_Resume.pdf /app/
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
